@@ -32,7 +32,7 @@ jobs:
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",
-            "alert_summary": "Command Injection Vulnerability Scan"
+            "alert_summary": "Suspicious user activity detected"
           }' "${{ github.repository }}" "${{ github.sha }}")
 
           # Send the webhook.

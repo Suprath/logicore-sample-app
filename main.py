@@ -7,12 +7,12 @@ app = FastAPI(title="Vulnerable Sample App")
 # A small change to trigger the workflow
 
 # A safe, root endpoint
- @app.get("/")
+@app.get("/")
 def read_root():
     return {"Status": "OK"}
 
 # A deliberately vulnerable endpoint for CodeQL to find
- @app.get("/run")
+@app.get("/run")
 def run_command(cmd: str):
     """
     Executes a shell command.

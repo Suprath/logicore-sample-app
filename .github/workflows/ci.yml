@@ -1,31 +1,17 @@
-# FILE: .github/workflows/ci.yml
-name: Simulate Deployment and Trigger Correlator
-
-# This workflow runs on every push to the 'main' branch
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  simulate-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout @v3
-
-      - name: "Announce deployment"
-        run: echo "Simulating deployment of commit ${{ github.sha }} for repo ${{ github.repository }}"
+# In .github/workflows/ci.yml
 
       - name: "Fire Webhook to Correlator"
-        # This step sends a POST request to the URL we will define in a repository secret.
-        # It will fail initially until we set up the Correlator and the secret, which is fine.
+        # This version is more robust against shell parsing errors.
         run: |
-          curl -X POST ${{ secrets.CORRELATOR_WEBHOOK_URL }} \
+          # Prepare the JSON payload, escaping quotes.
+          JSON_PAYLOAD=$(printf '{
+            "service_name": "%s",
+            "commit_hash": "%s",
+            "alert_summary": "Command Injection Vulnerability Scan"
+          }' "${{ github.repository }}" "${{ github.sha }}")
+
+          # Send the webhook. -s for silent, -f to fail on server errors.
+          curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Webhook" \
-          -d \'{ \
-                "service_name": "${{ github.repository }}",\
-                "commit_hash": "${{ github.sha }}",\
-                "alert_summary": "Command Injection Vulnerability Scan"\
-              }\'
-
+          -d "$JSON_PAYLOAD"

@@ -1,0 +1,31 @@
+# FILE: .github/workflows/ci.yml
+name: Simulate Deployment and Trigger Correlator
+
+# This workflow runs on every push to the 'main' branch
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  simulate-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout @v3
+
+      - name: "Announce deployment"
+        run: echo "Simulating deployment of commit ${{ github.sha }} for repo ${{ github.repository }}"
+
+      - name: "Fire Webhook to Correlator"
+        # This step sends a POST request to the URL we will define in a repository secret.
+        # It will fail initially until we set up the Correlator and the secret, which is fine.
+        run: |
+          curl -X POST ${{ secrets.CORRELATOR_WEBHOOK_URL }} \
+          -H "Content-Type: application/json" \
+          -H "User-Agent: GitHub-Actions-Webhook" \
+          -d \'{ \
+                "service_name": "${{ github.repository }}",\
+                "commit_hash": "${{ github.sha }}",\
+                "alert_summary": "Command Injection Vulnerability Scan"\
+              }\'
+

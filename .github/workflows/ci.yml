@@ -28,27 +28,21 @@ jobs:
       # Step 2: Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         id: codeql-init
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: python
-          # build-mode: none is used when you have a separate, explicit build step.
-          # For Python, `autobuild` is sufficient.
-          build-mode: none
-
-      # Step 3: Automatically builds the CodeQL database.
-      # For Python, it traces the execution to understand the codebase.
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+          
 
       # Step 4: Uploads the generated CodeQL database as a workflow artifact.
       # This makes the database available for download or for use in subsequent jobs.
+      - name: Build CodeQL Database
+        run: codeql database create --language=python ./codeql-db
+        
       - name: Upload CodeQL database as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4  
         with:
           name: codeql-db-for-${{ github.sha }}
-          # The CodeQL action creates the database in a directory named 'codeql-db'
-          # in the parent of the checkout directory.
-          path: ../codeql-db
+          path: ./codeql-db
 
 
   # This job simulates a deployment and sends the webhook.

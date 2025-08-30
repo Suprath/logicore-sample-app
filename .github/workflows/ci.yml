@@ -27,6 +27,7 @@ jobs:
 
       # Step 2: Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
+        id: codeql-init
         uses: github/codeql-action/init@v2
         with:
           languages: python

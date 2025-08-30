@@ -1,54 +1,65 @@
 # FILE: .github/workflows/ci.yml
 
+# Name for the entire workflow, displayed on GitHub's Actions tab.
 name: Build CodeQL DB, Deploy, and Trigger Correlator
 
+# Trigger this workflow on every push to the 'main' branch.
 on:
   push:
     branches: [ "main" ]
 
+# A workflow run is made up of one or more jobs.
 jobs:
-  # This job builds the CodeQL database and uploads it as an artifact.
+  # This job's purpose is to build the CodeQL database for the pushed commit.
   build-codeql-database:
+    # The type of virtual machine the job will run on.
     runs-on: ubuntu-latest
+    
+    # Define the permissions the GITHUB_TOKEN will have for this job.
     permissions:
-      security-events: write
-      actions: read
+      security-events: write # Required for CodeQL to initialize.
+      actions: read        # Required for the CodeQL action to read metadata.
+      contents: read       # Required for actions/checkout.
 
+    # A job contains a sequence of tasks called steps.
     steps:
+      # Step 1: Checks out your repository under $GITHUB_WORKSPACE.
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Use the latest stable version
 
-      # Initialize the CodeQL Action (v3)
+      # Step 2: Initializes the CodeQL tools for scanning (using the non-deprecated v3).
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: python
 
-      # Autobuild the database
+      # Step 3: Automatically builds the CodeQL database.
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
-      # Move the created database to a predictable local path
+      # Step 4: Move the created database to a predictable local path for upload.
       - name: Move CodeQL database to a known path
         run: mv ${{ runner.temp }}/codeql_databases/python ./codeql-db
 
-      # Upload the database from that known path
+      # Step 5: Uploads the generated CodeQL database as a workflow artifact.
       - name: Upload CodeQL database as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4 # Use the latest stable version
         with:
           name: codeql-db-for-${{ github.sha }}
           path: ./codeql-db
+          retention-days: 7 # Keep artifacts for 7 days.
 
   # This job simulates a deployment and sends the webhook.
   simulate-deploy-and-trigger:
-    needs: build-codeql-database # Corrected job name
+    # This job will only start after 'build-codeql-database' completes successfully.
+    needs: build-codeql-database
     runs-on: ubuntu-latest
 
     steps:
-      # This job doesn't need to check out the code again.
+      # This job fires the webhook with the commit and repository info.
       - name: "Fire Webhook to Correlator"
         run: |
-          # Prepare the JSON payload safely.
+          # Prepare the JSON payload safely to avoid shell parsing issues.
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",

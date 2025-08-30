@@ -1,43 +1,65 @@
 # FILE: .github/workflows/ci.yml
 
-# Name of the entire workflow
-name: Simulate Deployment and Trigger Correlator
+name: Build CodeQL DB, Deploy, and Trigger Correlator
 
-# This workflow runs on every push to the 'main' branch
 on:
   push:
     branches: [ "main" ]
 
-# Define the jobs that will run in this workflow
 jobs:
-  # Define a single job with the ID 'simulate-deploy'
-  simulate-deploy:
-    # The type of virtual machine the job will run on
+  # --- NEW JOB: This job's only purpose is to build the CodeQL database ---
+  build-codeql-database:
     runs-on: ubuntu-latest
+    permissions:
+      # Required for the CodeQL Action to initialize and analyze
+      security-events: write
+      actions: read
 
-    # The sequence of steps to execute for this job
     steps:
-      # Step 1: Check out the repository's code
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: A simple step to print a message to the logs
-      - name: "Announce deployment"
-        run: echo "Simulating deployment of commit ${{ github.sha }} for repo ${{ github.repository }}"
+      # Use GitHub's official CodeQL Action to initialize the analysis
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python # Specify the language of your repository
+          # We don't run the analysis here, we just build the database.
 
-      # Step 3: The corrected step to fire the webhook
+      # This step would be where you build/test your actual application.
+      # For our simple Python app, we can just install dependencies.
+      - name: "Build/Test Application (Simulated)"
+        run: pip install -r requirements.txt
+        
+      # This action finalizes the database creation.
+      - name: Finalize CodeQL Database
+        uses: github/codeql-action/finalize-database@v2
+
+      # CRITICAL STEP: Upload the generated CodeQL database as a workflow artifact.
+      # This makes the database available for other jobs or for download.
+      - name: Upload CodeQL database as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-db-for-${{ github.sha }} # Name the artifact with the commit hash
+          path: ${{ runner.temp }}/codeql_databases # Default path where the DB is created
+
+
+  # --- MODIFIED JOB: This job now depends on the build job ---
+  simulate-deploy-and-trigger:
+    # This job will only run after 'build-codeql-database' completes successfully
+    needs: build-codeql-database
+    runs-on: ubuntu-latest
+
+    steps:
+      # No need to check out the code again. We just need to fire the webhook.
       - name: "Fire Webhook to Correlator"
         run: |
-          # Prepare the JSON payload safely.
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",
             "alert_summary": "Suspicious user activity detected"
           }' "${{ github.repository }}" "${{ github.sha }}")
 
-          # Send the webhook.
-          # -s makes it silent.
-          # -f makes it fail with an error code if the server returns an HTTP error.
           curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Webhook" \

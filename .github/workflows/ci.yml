@@ -41,7 +41,7 @@ jobs:
 
   # This job simulates a deployment and sends the webhook.
   simulate-deploy-and-trigger:
-    needs: build-code-database # Corrected job name
+    needs: build-codeql-database # Corrected job name
     runs-on: ubuntu-latest
 
     steps:

@@ -4,7 +4,7 @@ import subprocess
 import uvicorn
 
 app = FastAPI(title="Vulnerable Sample App")
-# A small change to trigger the workflow 46
+# A small change to trigger the workflow 47
 
 # A safe, root endpoint
 @app.get("/")

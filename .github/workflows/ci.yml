@@ -38,7 +38,7 @@ jobs:
       # CRITICAL STEP: Upload the generated CodeQL database as a workflow artifact.
       # This makes the database available for other jobs or for download.
       - name: Upload CodeQL database as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: codeql-db-for-${{ github.sha }} # Name the artifact with the commit hash
           path: ${{ runner.temp }}/codeql_databases # Default path where the DB is created

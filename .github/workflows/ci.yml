@@ -1,66 +1,74 @@
 # FILE: .github/workflows/ci.yml
 
+# Name for the entire workflow, displayed on GitHub's Actions tab.
 name: Build CodeQL DB, Deploy, and Trigger Correlator
 
+# Trigger this workflow on every push to the 'main' branch.
 on:
   push:
     branches: [ "main" ]
 
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel.
 jobs:
-  # --- NEW JOB: This job's only purpose is to build the CodeQL database ---
+  # This job's only purpose is to build the CodeQL database.
   build-codeql-database:
+    # The type of virtual machine the job will run on.
     runs-on: ubuntu-latest
+    # Define the permissions the GITHUB_TOKEN will have for this job.
     permissions:
-      # Required for the CodeQL Action to initialize and analyze
-      security-events: write
-      actions: read
+      security-events: write # Required for CodeQL to upload results to GitHub
+      actions: read        # Required for the CodeQL action to read metadata
 
+    # A job contains a sequence of tasks called steps.
     steps:
+      # Step 1: Checks out your repository under $GITHUB_WORKSPACE, so your job can access it.
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Use GitHub's official CodeQL Action to initialize the analysis
+      # Step 2: Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: python # Specify the language of your repository
-          # We don't run the analysis here, we just build the database.
+          languages: python
+          # build-mode: none is used when you have a separate, explicit build step.
+          # For Python, `autobuild` is sufficient.
+          build-mode: none
 
-      # This step would be where you build/test your actual application.
-      # For our simple Python app, we can just install dependencies.
-      - name: "Build/Test Application (Simulated)"
-        run: pip install -r requirements.txt
-        
-      # This action finalizes the database creation.
-      - name: Finalize CodeQL Database
-        uses: github/codeql-action/finalize-database@v2
+      # Step 3: Automatically builds the CodeQL database.
+      # For Python, it traces the execution to understand the codebase.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
 
-      # CRITICAL STEP: Upload the generated CodeQL database as a workflow artifact.
-      # This makes the database available for other jobs or for download.
+      # Step 4: Uploads the generated CodeQL database as a workflow artifact.
+      # This makes the database available for download or for use in subsequent jobs.
       - name: Upload CodeQL database as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: codeql-db-for-${{ github.sha }} # Name the artifact with the commit hash
-          path: ${{ runner.temp }}/codeql_databases # Default path where the DB is created
+          name: codeql-db-for-${{ github.sha }}
+          # The CodeQL action creates the database in a directory named 'codeql-db'
+          # in the parent of the checkout directory.
+          path: ../codeql-db
 
 
-  # --- MODIFIED JOB: This job now depends on the build job ---
+  # This job simulates a deployment and sends the webhook.
   simulate-deploy-and-trigger:
-    # This job will only run after 'build-codeql-database' completes successfully
+    # This job will only start after 'build-codeql-database' completes successfully.
     needs: build-codeql-database
     runs-on: ubuntu-latest
 
     steps:
-      # No need to check out the code again. We just need to fire the webhook.
+      # This job doesn't need to check out the code again. We just fire the webhook.
       - name: "Fire Webhook to Correlator"
         run: |
+          # Prepare the JSON payload safely.
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",
             "alert_summary": "Suspicious user activity detected"
           }' "${{ github.repository }}" "${{ github.sha }}")
 
-          curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
+          # Send the webhook.
+          curl -sf -X POST "${{ secrets.CORRELOTOR_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Webhook" \
           -d "$JSON_PAYLOAD"

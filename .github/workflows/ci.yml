@@ -44,8 +44,13 @@ jobs:
 
           echo "Sending alert to Correlator: $ALERT_MESSAGE"
 
-          # Send the webhook to the URL defined in the repository secret.
-          curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
+          # --- THE FIX IS HERE ---
+          # We now append the '/webhook' path directly in the script.
+          # This makes the secret setup simpler and less error-prone for the user.
+          FULL_URL="${{ secrets.CORRELATOR_WEBHOOK_URL }}/webhook"
+
+          # Send the webhook to the fully constructed URL.
+          curl -sf -X POST "$FULL_URL" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Webhook" \
           -d "$JSON_PAYLOAD"

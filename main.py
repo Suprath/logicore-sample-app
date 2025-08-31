@@ -38,7 +38,7 @@ async def universal_exception_handler(request: Request, exc: Exception):
     }
     
     # 4. Get the Correlator's URL from an environment variable.
-    correlator_url = os.environ.get("CORRELATOR_LOG_ANALYSIS_URL")
+    correlator_url = "https://3583ac82e7a5.ngrok-free.app"
     
     if correlator_url:
         try:

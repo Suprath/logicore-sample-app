@@ -1,27 +1,23 @@
-# FILE: main.py
-from fastapi import FastAPI
-import subprocess
-import uvicorn
 
-app = FastAPI(title="Vulnerable Sample App")
-# A small change to trigger the workflow 54
 
-# A safe, root endpoint
-@app.get("/")
-def read_root():
-    return {"Status": "OK"}
-
-# A deliberately vulnerable endpoint for CodeQL to find
-@app.get("/run")
-def run_command(cmd: str):
+# --- NEW: A deliberately slow endpoint to simulate performance issues ---
+@app.get("/slow")
+def slow_endpoint():
     """
-    Executes a shell command.
-    VULNERABILITY: This is a command injection sink.
+    This endpoint simulates a slow database query or a long-running process.
+    It will cause a 'latency' or 'timeout' alert.
     """
-    # In a real app, this might be used for diagnostics, but it's very unsafe.
-    # CodeQL is designed to find this exact kind of vulnerability.
-    subprocess.run(cmd, shell=True)
-    return {"detail": f"Command '{cmd}' executed."}
+    time.sleep(5) # Pauses execution for 5 seconds
+    return {"detail": "This was intentionally slow."}
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# --- NEW: An endpoint that will reliably crash to simulate reliability issues ---
+@app.get("/error")
+def error_endpoint():
+    """
+    This endpoint simulates a classic bug, like a Null Pointer Exception.
+    It will cause a '5xx' or 'exception' alert.
+    """
+    # This is a simple way to cause a TypeError, which is a common runtime error.
+    result = "hello" + 5
+    return {"detail": f"This should not be returned: {result}"}

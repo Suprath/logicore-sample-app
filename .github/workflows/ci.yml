@@ -1,26 +1,75 @@
 # FILE: .github/workflows/ci.yml
 
-name: Simulate Deployment and Trigger Correlator
+name: Build CodeQL DB, Deploy, and Trigger Correlator
 
+# --- THE FIX: Add a 'workflow_dispatch' trigger ---
 on:
+  # This still runs automatically on every push to the 'main' branch
   push:
     branches: [ "main" ]
+  
+  # This allows you to run the workflow MANUALLY from the Actions tab
+  workflow_dispatch:
+    inputs:
+      # Define the input field that will appear on the GitHub UI
+      alert_summary:
+        description: 'The simulated alert summary to send'
+        required: true
+        # Provide a dropdown list of choices for easy testing
+        type: choice
+        options:
+          - "Suspicious user activity detected (Security Scan)"
+          - "p99 latency is high on checkout (Performance Scan)"
+          - "500 error rate spike on login (Reliability Scan)"
+          - "A generic default alert"
 
 jobs:
-  # We only need one simple job now.
-  fire-webhook:
+  build-codeql-database:
+    # ... (this job remains exactly the same as before) ...
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     steps:
-      - name: "Announce deployment"
-        run: echo "Simulating deployment of commit ${{ github.sha }} for repo ${{ github.repository }}"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Move CodeQL database to a known path
+        run: mv ${{ runner.temp }}/codeql_databases/python ./codeql-db
+      - name: Upload CodeQL database as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-db-for-${{ github.sha }}
+          path: ./codeql-db
+          retention-days: 7
 
+  simulate-deploy-and-trigger:
+    needs: build-codeql-database
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+
+    steps:
       - name: "Fire Webhook to Correlator"
         run: |
+          # --- THE FIX: Use the manually provided summary if available ---
+          # If the workflow was run manually, github.event.inputs.alert_summary will have a value.
+          # If it was run by a push, it will be empty, so we fall back to a default.
+          ALERT_MESSAGE="${{ github.event.inputs.alert_summary || 'Suspicious activity from push trigger' }}"
+
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",
-            "alert_summary": "Suspicious user activity detected"
-          }' "${{ github.repository }}" "${{ github.sha }}")
+            "alert_summary": "%s"
+          }' "${{ github.repository }}" "${{ github.sha }}" "$ALERT_MESSAGE")
+
+          echo "Sending alert: $ALERT_MESSAGE"
 
           curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \

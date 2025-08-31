@@ -1,76 +1,50 @@
 # FILE: .github/workflows/ci.yml
 
-name: Build CodeQL DB, Deploy, and Trigger Correlator
+name: Simulate Deployment and Trigger Correlator
 
-# --- THE FIX: Add a 'workflow_dispatch' trigger ---
+# Define the triggers for this workflow
 on:
-  # This still runs automatically on every push to the 'main' branch
+  # Trigger automatically on every push to the 'main' branch
   push:
     branches: [ "main" ]
   
-  # This allows you to run the workflow MANUALLY from the Actions tab
+  # Also allow this workflow to be run MANUALLY from the Actions tab on GitHub
   workflow_dispatch:
     inputs:
-      # Define the input field that will appear on the GitHub UI
+      # When run manually, present an input field with a dropdown of choices
       alert_summary:
-        description: 'The simulated alert summary to send'
+        description: 'The simulated alert summary to send to the Correlator'
         required: true
-        # Provide a dropdown list of choices for easy testing
         type: choice
         options:
-          - "Suspicious user activity detected (Security Scan)"
-          - "p99 latency is high on checkout (Performance Scan)"
-          - "500 error rate spike on login (Reliability Scan)"
+          - "Suspicious user activity detected (Triggers Security Scan)"
+          - "p99 latency is high on checkout (Triggers Performance Scan)"
+          - "500 error rate spike on login (Triggers Reliability Scan)"
           - "A generic default alert"
 
+# A workflow run is made up of one or more jobs. We only need one.
 jobs:
-  build-codeql-database:
-    # ... (this job remains exactly the same as before) ...
+  # This single job's only purpose is to send the webhook.
+  fire-webhook:
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: python
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-      - name: Move CodeQL database to a known path
-        run: mv ${{ runner.temp }}/codeql_databases/python ./codeql-db
-      - name: Upload CodeQL database as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeql-db-for-${{ github.sha }}
-          path: ./codeql-db
-          retention-days: 7
-
-  simulate-deploy-and-trigger:
-    needs: build-codeql-database
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-
-    steps:
+      # This job does not need to check out the code. It just sends the event data.
       - name: "Fire Webhook to Correlator"
         run: |
-          # --- THE FIX: Use the manually provided summary if available ---
-          # If the workflow was run manually, github.event.inputs.alert_summary will have a value.
-          # If it was run by a push, it will be empty, so we fall back to a default.
+          # If the workflow was run manually ('workflow_dispatch' event), the 'inputs.alert_summary' will exist.
+          # If it was run by a 'push' event, it will be empty, so we fall back to a default message.
           ALERT_MESSAGE="${{ github.event.inputs.alert_summary || 'Suspicious activity from push trigger' }}"
 
+          # Prepare the JSON payload safely.
           JSON_PAYLOAD=$(printf '{
             "service_name": "%s",
             "commit_hash": "%s",
             "alert_summary": "%s"
           }' "${{ github.repository }}" "${{ github.sha }}" "$ALERT_MESSAGE")
 
-          echo "Sending alert: $ALERT_MESSAGE"
+          echo "Sending alert to Correlator: $ALERT_MESSAGE"
 
+          # Send the webhook to the URL defined in the repository secret.
           curl -sf -X POST "${{ secrets.CORRELATOR_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
           -H "User-Agent: GitHub-Actions-Webhook" \
